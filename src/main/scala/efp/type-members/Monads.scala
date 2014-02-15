@@ -174,17 +174,61 @@ object Monads {
 
 
   /////////////////////////////////////////////////////////////////////////////////
+  // Variation 3: State
+  //type State[A] = Int
+
+//  type State[A] = ({type λ})#λ
+
+
+  trait StateMonad[A] extends Monad[A] {
+    type State
+    override type M[A] = Function[State, (A, State)]
+
+    def unitM(a: A) : M[A] = (s0: State) => (a, s0)
+
+    def bindM[B](a: M[A], f: A => M[B]) : M[B]  =  (s0: State) => {
+      val (x, s1) = a(s0)
+      val (y, s2) = f(x)(s1)
+      (y, s2)
+    }
+  }
+
+   class StateInterpreter extends MonadicInterpreter with StateMonad[Value]
+   {
+     type State = Int
+     
+     def tickS : M[Value] = (s: State) => (Wrong, s + 1)
+
+     override def app(f: Value, b: Value) : M[Value] = (f, b) match {
+       case (Fun(k), a) => bindM(tickS, (v: Value) => k(a))
+       case _ => super.app(f, b)
+     }
+
+     override def add(a: Value, b: Value) : M[Value] = (a, b) match {
+       case (Num(i), Num(j)) => bindM(tickS, (v: Value) => unitM(Num(i + j)))
+       case _ => super.add(a, b)
+     }
+
+     def showM(m: M[Value]) =  {
+       val (a, s1) = m(0)
+       "Value: " + showval(a) + ";\n" +
+       "Count: " + s1
+     }
+   }
+
+
+  /////////////////////////////////////////////////////////////////////////////////
   
   def main(args: Array[String]) {
     println("Variation 0")
     val term0 : Term = App (Lam ("x", Add( (Var("x")), (Var("x")) )/* /Add */ )/* /Lam */, Add( Con(10), Con(11) ) )
-    val interpreter0 = new StandardInterpreter()
+    val interpreter0 = new StandardInterpreter
     val result0 = interpreter0.test(term0)
     println(result0)
     println
     
     println("Variation 1")
-    val interpreter1 = new ErrorInterpreter()
+    val interpreter1 = new ErrorInterpreter
     val result1 = interpreter1.test(term0)
     println(result1)
 
@@ -194,11 +238,17 @@ object Monads {
     println
 
     println("Variation 2")
-    val interpreter2 = new PosErrorInterpreter()
+    val interpreter2 = new PosErrorInterpreter
     val result3 = interpreter2.test(term0)
     println(result3)
     val term2 =  At(0, App (Lam ("x", At(1, Add( (Var("x")), (Var("x")) ))/* /Add */ )/* /Lam */, At(2, Add(App(Con(9), Con(10)), Con(11) ))))
     val result4 = interpreter2.test(term2)
     println(result4)
+
+    println("Variation 3")
+    val interpreter3 = new StateInterpreter
+    val result5 = interpreter3.test(term0)
+    println(result5)
+
   }
 }
